@@ -1,0 +1,51 @@
+# ─── Apex Retail · gitignore ────────────────────────────────────────
+provided_context
+CCTV Footage
+# Secrets / env
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.ruff_cache/
+.mypy_cache/
+
+# Virtualenv
+.venv/
+venv/
+env/
+
+# Dataset (challenge license: do not redistribute)
+data/clips/
+data/*.zip
+data/pos_transactions.csv
+data/sample_events.jsonl
+data/store_layout.json
+data/assertions.py
+
+# Detection model weights
+*.pt
+*.onnx
+weights/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+logs/
+*.log
+
+# Docker volumes
+postgres_data/
+apex.db

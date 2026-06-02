@@ -1,0 +1,24 @@
+# ─── Apex Retail · dockerignore ─────────────────────────────────────
+.git
+.gitignore
+.venv
+venv
+env
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.coverage
+.ruff_cache
+.mypy_cache
+htmlcov
+.env
+.env.*
+!.env.example
+data/clips/
+data/*.zip
+*.pt
+weights/
+docs/
+README.md
+BATCH_TRACKER.md

@@ -1,0 +1,39 @@
+# ─── Apex Retail · API Image ────────────────────────────────────────
+# Slim Python base. Detection pipeline gets its own image (Batch 4) so we
+# don't drag YOLO/torch into the API container.
+
+FROM python:3.11-slim AS base
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Dependencies first → layer caching when source changes.
+COPY requirements.txt ./
+RUN pip install --upgrade pip && pip install -r requirements.txt
+
+# Source (respects .dockerignore).
+COPY app ./app
+COPY migrations ./migrations
+COPY alembic.ini ./
+COPY pyproject.toml ./
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# Run as non-root.
+RUN useradd --create-home --uid 1001 apex && chown -R apex:apex /app
+USER apex
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:8000/health || exit 1
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

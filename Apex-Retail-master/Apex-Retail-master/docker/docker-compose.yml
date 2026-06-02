@@ -1,0 +1,2 @@
+# Moved to repo root. See ../docker-compose.yml — acceptance gate expects
+# `docker compose up` from the repository root.

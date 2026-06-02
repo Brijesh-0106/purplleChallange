@@ -1,0 +1,59 @@
+# ─── Apex Retail · docker-compose (repo root) ──────────────────────
+# Acceptance gate: `docker compose up` from the repo root must Just Work.
+#
+# Services in this batch:
+#   db   — PostgreSQL 16 (used from Batch 2 onwards; declared now so the
+#          API container can wait on it once we wire SQLAlchemy)
+#   api  — FastAPI + /health
+#
+# Future batches will add `dashboard` (web UI) and `pipeline` (detection runner).
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: apex_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-apex_retail}
+      POSTGRES_USER: ${DB_USER:-apex}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-apex_dev_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-apex} -d ${DB_NAME:-apex_retail}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: apex_api
+    restart: unless-stopped
+    # Read .env if present, but don't fail the build if it isn't there yet
+    # (compose v2 supports `env_file: required: false`; we use defaults inline
+    # to keep the smoke-test path zero-config).
+    environment:
+      APP_NAME: ${APP_NAME:-apex-retail-store-intelligence}
+      APP_ENV: ${APP_ENV:-local}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_JSON: ${LOG_JSON:-true}
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-apex_retail}
+      DB_USER: ${DB_USER:-apex}
+      DB_PASSWORD: ${DB_PASSWORD:-apex_dev_password}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+    name: apex_postgres_data

@@ -1,0 +1,296 @@
+<!doctype html>
+<!--
+  Apex Retail · Store Intelligence — Live Dashboard
+  Single-page HTML/JS. Vanilla JS + Chart.js (CDN). No build step.
+
+  Architecture: this page subscribes to a WebSocket
+  (/ws/stores/{store_id}) for "store_changed" pings. On each ping (or
+  every N seconds via heartbeat) it fetches /metrics, /funnel, /heatmap,
+  /anomalies and re-renders the visuals. That keeps the wire payload
+  tiny and the page logic uniform whether events arrive in real-time or
+  on a polling cadence.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Apex Retail · Live Store Intelligence</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --border: #30363d;
+      --fg: #c9d1d9;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --good: #3fb950;
+      --warn: #d29922;
+      --bad:  #f85149;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      background: var(--bg); color: var(--fg);
+    }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 24px; border-bottom: 1px solid var(--border);
+    }
+    header h1 { font-size: 18px; margin: 0; font-weight: 600; }
+    header .meta { color: var(--muted); font-size: 13px; }
+    main {
+      display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px;
+      padding: 16px 24px;
+    }
+    .card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 8px; padding: 16px;
+    }
+    .card h2 { margin: 0 0 12px; font-size: 13px;
+      letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+    .span-3  { grid-column: span 3; }
+    .span-4  { grid-column: span 4; }
+    .span-6  { grid-column: span 6; }
+    .span-12 { grid-column: span 12; }
+    .kpi { font-size: 32px; font-weight: 600; line-height: 1; }
+    .kpi small { display: block; margin-top: 6px;
+      font-size: 12px; color: var(--muted); font-weight: 400; }
+    .kpi.good { color: var(--good); }
+    .kpi.warn { color: var(--warn); }
+    .kpi.bad  { color: var(--bad); }
+    .row { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+    .pill {
+      display: inline-block; padding: 2px 8px; border-radius: 999px;
+      font-size: 11px; letter-spacing: .04em; text-transform: uppercase;
+    }
+    .pill.ok       { background: #1b3a26; color: var(--good); }
+    .pill.degraded { background: #3a2f1b; color: var(--warn); }
+    .pill.low      { background: #3a1f1b; color: var(--bad); }
+    .anomaly { padding: 10px 12px; border-radius: 6px;
+      border: 1px solid var(--border); margin-bottom: 8px; }
+    .anomaly.warn     { border-color: #5c4a18; background: #3a2f1b; }
+    .anomaly.critical { border-color: #6e2828; background: #3a1f1b; }
+    .anomaly h3 { margin: 0 0 4px; font-size: 13px; }
+    .anomaly p  { margin: 0; font-size: 12px; color: var(--muted); }
+    canvas { max-height: 240px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 500; }
+    code { color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🛍️ Apex Retail · Live Store Intelligence</h1>
+  <div class="meta">
+    Store <code id="storeId">—</code> ·
+    <span id="connBadge" class="pill ok">connecting…</span> ·
+    <span id="lastUpdate">never</span>
+  </div>
+</header>
+
+<main>
+  <!-- KPIs -->
+  <section class="card span-3"><h2>Conversion Rate</h2>
+    <div class="kpi" id="kpiConv">—</div>
+    <small id="kpiConvSub">unique visitors / purchases</small></section>
+  <section class="card span-3"><h2>Unique Visitors</h2>
+    <div class="kpi" id="kpiVisitors">—</div>
+    <small id="kpiVisitorsSub">excluding staff</small></section>
+  <section class="card span-3"><h2>Purchases</h2>
+    <div class="kpi good" id="kpiPurchases">—</div>
+    <small id="kpiPurchasesSub">gross basket ₹—</small></section>
+  <section class="card span-3"><h2>Billing Queue</h2>
+    <div class="kpi" id="kpiQueue">—</div>
+    <small id="kpiQueueSub">joins · abandonment %</small></section>
+
+  <!-- Funnel -->
+  <section class="card span-6"><h2>Funnel · Entry → Browse → Billing → Purchase</h2>
+    <canvas id="funnelChart"></canvas></section>
+
+  <!-- Heatmap (per-zone bars) -->
+  <section class="card span-6"><h2>Zone Heatmap (Visit Share)</h2>
+    <canvas id="heatmapChart"></canvas></section>
+
+  <!-- Anomalies -->
+  <section class="card span-6"><h2>Anomalies</h2>
+    <div id="anomalyList"><p style="color: var(--muted);">No anomalies detected.</p></div></section>
+
+  <!-- Health -->
+  <section class="card span-6"><h2>Health</h2>
+    <div class="row" style="margin-bottom: 12px;">
+      <span id="healthOverall" class="pill ok">ok</span>
+      <span class="meta" id="healthVersion"></span>
+    </div>
+    <table><thead><tr>
+      <th>Store</th><th>Last event</th><th>Lag</th><th>Status</th>
+    </tr></thead><tbody id="healthRows"></tbody></table>
+  </section>
+</main>
+
+<script>
+(() => {
+  const params = new URLSearchParams(window.location.search);
+  const STORE_ID = params.get("store") || "ST1008";
+  document.getElementById("storeId").textContent = STORE_ID;
+
+  // ── State ────────────────────────────────────────────────────────
+  let funnelChart, heatmapChart;
+
+  // ── Helpers ──────────────────────────────────────────────────────
+  const fetchJSON = async (path) => {
+    const r = await fetch(path);
+    if (!r.ok) throw new Error(`${path} → ${r.status}`);
+    return r.json();
+  };
+  const setBadge = (el, text, cls) => {
+    el.textContent = text; el.className = `pill ${cls}`;
+  };
+  const fmtPct = (n) => `${(n * 100).toFixed(1)}%`;
+  const fmtINR = (n) => `₹${Math.round(n).toLocaleString("en-IN")}`;
+
+  // ── Renderers ────────────────────────────────────────────────────
+  const renderMetrics = (m) => {
+    document.getElementById("kpiConv").textContent       = fmtPct(m.conversion_rate);
+    document.getElementById("kpiConv").className         = `kpi ${m.conversion_rate < 0.05 ? "bad" : "good"}`;
+    document.getElementById("kpiVisitors").textContent   = m.unique_visitors;
+    document.getElementById("kpiPurchases").textContent  = m.total_purchases;
+    document.getElementById("kpiPurchasesSub").textContent =
+      `gross basket ${fmtINR(m.gross_basket_inr)}`;
+    document.getElementById("kpiQueue").textContent      = m.billing_queue_joins;
+    document.getElementById("kpiQueueSub").textContent   =
+      `${m.billing_queue_abandons} abandons · ${fmtPct(m.billing_abandonment_rate)}`;
+    document.getElementById("kpiConvSub").textContent =
+      `data confidence: ${m.data_confidence}`;
+  };
+
+  const renderFunnel = (f) => {
+    const labels = f.stages.map(s => s.name);
+    const values = f.stages.map(s => s.sessions);
+    const colors = ["#58a6ff", "#3fb950", "#d29922", "#a371f7"];
+    if (!funnelChart) {
+      funnelChart = new Chart(document.getElementById("funnelChart"), {
+        type: "bar",
+        data: { labels, datasets: [{ data: values, backgroundColor: colors }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { displayColors: false } },
+          scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+        },
+      });
+    } else {
+      funnelChart.data.labels = labels;
+      funnelChart.data.datasets[0].data = values;
+      funnelChart.update("none");
+    }
+  };
+
+  const renderHeatmap = (h) => {
+    const sorted = [...h.zones].sort((a, b) => b.visits - a.visits);
+    const labels = sorted.map(z => z.zone_id);
+    const values = sorted.map(z => z.intensity);
+    if (!heatmapChart) {
+      heatmapChart = new Chart(document.getElementById("heatmapChart"), {
+        type: "bar",
+        data: { labels, datasets: [{ data: values, backgroundColor: "#58a6ff" }] },
+        options: {
+          indexAxis: "y", responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { x: { min: 0, max: 1, ticks: { callback: v => `${v * 100}%` } } },
+        },
+      });
+    } else {
+      heatmapChart.data.labels = labels;
+      heatmapChart.data.datasets[0].data = values;
+      heatmapChart.update("none");
+    }
+  };
+
+  const renderAnomalies = (resp) => {
+    const list = document.getElementById("anomalyList");
+    if (!resp.anomalies.length) {
+      list.innerHTML = `<p style="color: var(--muted);">No anomalies detected.</p>`;
+      return;
+    }
+    list.innerHTML = resp.anomalies.map(a => `
+      <div class="anomaly ${a.severity}">
+        <h3>${a.type.replace("_", " ")} <span class="pill ${a.severity === "critical" ? "low" : "degraded"}">${a.severity}</span></h3>
+        <p><strong>${a.message}</strong></p>
+        <p style="margin-top: 4px;">↪ ${a.suggested_action}</p>
+      </div>
+    `).join("");
+  };
+
+  const renderHealth = (h) => {
+    setBadge(document.getElementById("healthOverall"), h.status,
+      h.status === "ok" ? "ok" : h.status === "degraded" ? "degraded" : "low");
+    document.getElementById("healthVersion").textContent =
+      `${h.service} v${h.version} · ${h.environment}`;
+    const tbody = document.getElementById("healthRows");
+    tbody.innerHTML = (h.stores || []).map(s => `
+      <tr>
+        <td><code>${s.store_id}</code></td>
+        <td>${s.last_event_at ? new Date(s.last_event_at).toLocaleTimeString() : "—"}</td>
+        <td>${s.lag_seconds != null ? `${Math.round(s.lag_seconds)}s` : "—"}</td>
+        <td><span class="pill ${s.status === "ok" ? "ok" : "degraded"}">${s.status}</span></td>
+      </tr>`).join("") || `<tr><td colspan="4" style="color: var(--muted);">No store events yet.</td></tr>`;
+  };
+
+  // ── Data refresh (called on every WS ping AND on heartbeat) ──────
+  let inflight = false;
+  const refresh = async () => {
+    if (inflight) return;
+    inflight = true;
+    try {
+      const [metrics, funnel, heatmap, anomalies, health] = await Promise.all([
+        fetchJSON(`/stores/${STORE_ID}/metrics`),
+        fetchJSON(`/stores/${STORE_ID}/funnel`),
+        fetchJSON(`/stores/${STORE_ID}/heatmap`),
+        fetchJSON(`/stores/${STORE_ID}/anomalies`),
+        fetchJSON(`/health`),
+      ]);
+      renderMetrics(metrics);
+      renderFunnel(funnel);
+      renderHeatmap(heatmap);
+      renderAnomalies(anomalies);
+      renderHealth(health);
+      document.getElementById("lastUpdate").textContent =
+        `updated ${new Date().toLocaleTimeString()}`;
+    } catch (e) {
+      console.error("refresh failed", e);
+    } finally {
+      inflight = false;
+    }
+  };
+
+  // ── WebSocket subscription ───────────────────────────────────────
+  const connect = () => {
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const url = `${proto}//${window.location.host}/ws/stores/${STORE_ID}`;
+    const ws = new WebSocket(url);
+    ws.onopen = () => {
+      setBadge(document.getElementById("connBadge"), "live", "ok");
+    };
+    ws.onmessage = () => { refresh(); };
+    ws.onerror = () => {
+      setBadge(document.getElementById("connBadge"), "error", "low");
+    };
+    ws.onclose = () => {
+      setBadge(document.getElementById("connBadge"), "reconnecting…", "degraded");
+      // Auto-reconnect after a short delay so a server restart heals itself.
+      setTimeout(connect, 2000);
+    };
+  };
+
+  // ── Boot ─────────────────────────────────────────────────────────
+  refresh();                                     // initial load
+  setInterval(refresh, 5000);                    // heartbeat (covers idle stores)
+  connect();
+})();
+</script>
+
+</body>
+</html>

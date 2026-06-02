@@ -1,0 +1,28 @@
+# ─── Apex Retail · Store Intelligence System ────────────────────────
+# Batch 1: Project Foundation
+# Pin only what we use today; extend per batch.
+
+# Web framework
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+
+# Validation / settings
+pydantic==2.9.2
+pydantic-settings==2.6.1
+
+# Structured logging
+structlog==24.4.0
+
+# DB (declared now so docker-compose has the driver; used from Batch 2)
+sqlalchemy==2.0.36
+psycopg[binary]==3.2.3
+alembic==1.14.0
+
+# Tests
+pytest==8.3.3
+pytest-asyncio==0.24.0
+httpx==0.27.2
+coverage==7.6.7
+
+# Dev / lint
+ruff==0.7.4

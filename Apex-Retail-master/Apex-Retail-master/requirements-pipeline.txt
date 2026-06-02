@@ -1,0 +1,22 @@
+# ─── Apex Retail · Pipeline-only dependencies ──────────────────────
+# Heavy CV / ML deps NOT needed for the API or `pytest`. Install only when
+# you actually want to run the YOLO detector backend on real video.
+#
+#     pip install -r requirements-pipeline.txt
+#
+# These pull a lot (torch is ~200 MB). On a Lilly proxy you may need to
+# configure pip's proxy first or pre-download wheels.
+
+# Detection + tracking
+ultralytics==8.3.39          # YOLOv8 + ByteTrack/BoT-SORT built in
+
+# CV runtime
+opencv-python-headless==4.10.0.84
+
+# torch — the heavy one. Pinned to a CPU wheel via Ultralytics' transitive
+# dep; if you need a specific CUDA build, install torch BEFORE this file:
+#     pip install torch==2.5.* --index-url https://download.pytorch.org/whl/cu121
+torch>=2.2,<3.0
+
+# numpy is pulled by torch/ultralytics transitively; pin loosely for safety.
+numpy>=1.26,<3.0
