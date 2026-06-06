@@ -2,6 +2,10 @@
 #   "Test the dashboard endpoints: (1) GET /dashboard returns HTML with the
 #    Chart.js script tag, (2) the WebSocket /ws/stores/{id} accepts a
 #    connection, (3) a publish to that store reaches the connected client."
+#
+# CHANGES MADE:
+#   - Verified HTML response containing Chart.js references.
+#   - Verified WebSocket connection and pub/sub message delivery using FastAPI's TestClient and Broadcaster.
 
 from __future__ import annotations
 

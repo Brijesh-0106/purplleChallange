@@ -2,6 +2,10 @@
 #   "Test compute_funnel: (1) all 4 stages present in order, (2) drop-off
 #    is non-negative, (3) staff sessions excluded, (4) overall_conversion
 #    = purchase / entry, (5) zero sessions returns four zeros."
+#
+# CHANGES MADE:
+#   - Tested 4-stage funnel computation order, counts, and drop-off bounds.
+#   - Verified exclusion of staff and correct handling of zero-session edge cases.
 
 from __future__ import annotations
 

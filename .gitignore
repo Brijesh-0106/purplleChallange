@@ -1,0 +1,66 @@
+# Virtual environments
+.venv/
+venv/
+env/
+**/.venv/
+**/venv/
+**/env/
+
+# Python cache
+**/__pycache__/
+**/*.py[cod]
+**/*$py.class
+
+# Testing / coverage
+.pytest_cache/
+**/.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+**/htmlcov/
+.ruff_cache/
+**/.ruff_cache/
+.mypy_cache/
+**/.mypy_cache/
+
+# Local databases, weights and docker volumes
+*.db
+**/*.db
+*.pt
+**/*.pt
+*.onnx
+**/*.onnx
+**/postgres_data/
+
+# OS / IDE
+.vscode/
+.idea/
+**/.vscode/
+**/.idea/
+.DS_Store
+Thumbs.db
+**/Thumbs.db
+
+# Logs
+logs/
+**/logs/
+*.log
+**/*.log
+
+# Project-specific datasets and assets
+**/provided_context/
+**/CCTV Footage/
+**/data/clips/
+**/data/*.zip
+**/data/pos_transactions.csv
+**/data/sample_events.jsonl
+**/data/store_layout.json
+**/data/assertions.py
+
+# Environment files
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example

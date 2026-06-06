@@ -3,6 +3,10 @@
 #    (2) intensity normalised 0..1 with busiest=1.0, (3) staff excluded,
 #    (4) data_confidence flips to low when sessions < threshold,
 #    (5) zero sessions returns empty zones list."
+#
+# CHANGES MADE:
+#   - Verified per-zone visit aggregation, share computation, and intensity normalization.
+#   - Verified staff exclusion and data confidence thresholds.
 
 from __future__ import annotations
 

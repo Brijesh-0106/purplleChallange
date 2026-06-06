@@ -3,6 +3,10 @@
 #    conversion 0 (not NaN), data_confidence='low', (2) staff filtered out,
 #    (3) conversion = purchasers / visitors, (4) avg dwell only across
 #    customers with dwell > 0, (5) per-zone dwell means."
+#
+# CHANGES MADE:
+#   - Tested zero-session bounds and conversion rates calculation.
+#   - Excluded staff from metrics and validated average dwell times and per-zone averages.
 
 from __future__ import annotations
 

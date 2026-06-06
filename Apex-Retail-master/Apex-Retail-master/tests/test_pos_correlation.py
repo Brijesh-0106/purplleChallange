@@ -4,6 +4,10 @@
 #    untouched, (3) staff session is never matched even if a POS row
 #    coincides, (4) session that didn't reach billing is never matched,
 #    (5) match comes from the right STORE only."
+#
+# CHANGES MADE:
+#   - Verified POS transactions correlation within time bounds.
+#   - Verified non-matching sessions, staff sessions, non-billing sessions, and store-specific matching.
 
 from __future__ import annotations
 

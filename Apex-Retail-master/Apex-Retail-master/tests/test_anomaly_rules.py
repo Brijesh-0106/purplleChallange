@@ -8,6 +8,10 @@
 #        denominators; doesn't fire when baseline conversion is zero.
 #    (3) detect_dead_zone fires for zones with zero visits when other
 #        zones have at least min_other_visits; suppressed on a quiet day."
+#
+# CHANGES MADE:
+#   - Implemented unit tests for all three anomaly rules using in-memory mock events and sessions.
+#   - Tested severity escalations and suppression thresholds.
 
 from __future__ import annotations
 
